@@ -1,0 +1,13 @@
+*.swp
+*.pyc
+*.orig
+*~
+
+#setup files
+build/
+dist/
+.build/
+MANIFEST
+django_robokassa.egg-info
+.tox
+

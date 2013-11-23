@@ -1,20 +1,21 @@
-#coding: utf-8
-from django.conf.urls.defaults import *
+from django.conf.urls import patterns, url
+from django.views.decorators.csrf import csrf_exempt
+from robokassa import views
 
-urlpatterns = patterns('robokassa.views',
+urlpatterns = patterns('',
     url(
           r'^result/$',
-          'receive_result',
+          csrf_exempt(views.ResultResponseView.as_view()),
           name='robokassa_result'
     ),
     url(
           r'^success/$',
-          'success',
+          csrf_exempt(views.SuccessResponseView.as_view()),
           name='robokassa_success'
     ),
     url(
           r'^fail/$',
-          'fail',
+          csrf_exempt(views.FailResponseView.as_view()),
           name='robokassa_fail'
     ),
 )
