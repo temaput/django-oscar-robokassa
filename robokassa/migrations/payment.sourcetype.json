@@ -1,0 +1,10 @@
+[
+{
+    "pk": null,
+    "model": "payment.sourcetype", 
+    "fields": {
+        "code": "robokassa", 
+        "name": "\u0420\u043e\u0431\u043e\u043a\u0430\u0441\u0441\u0430"
+    }
+}
+]

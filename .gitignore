@@ -3,6 +3,8 @@
 *.orig
 *~
 
+.git
+
 #setup files
 build/
 dist/
@@ -10,4 +12,3 @@ dist/
 MANIFEST
 django_robokassa.egg-info
 .tox
-

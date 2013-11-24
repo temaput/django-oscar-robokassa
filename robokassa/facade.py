@@ -7,9 +7,9 @@ from oscar.core.loading import get_class
 
 from robokassa.forms import RobokassaForm
 from robokassa.conf import EXTRA_PARAMS
-RedirectRequired = get_class('oscar.apps.payment.exceptions','RedirectRequired')
+RedirectRequired = get_class('payment.exceptions','RedirectRequired')
 
-def pre_auth(basket_num, amount, **kwargs):
+def robokassa_redirect(basket_num, amount, **kwargs):
     """ This will be called from PaymentDetailsView.handle_payment,
     it supposed to generate url for Robokassa, inject it into RedirectRequired
     error and raise it

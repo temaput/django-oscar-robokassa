@@ -6,16 +6,16 @@ urlpatterns = patterns('',
     url(
           r'^result/$',
           csrf_exempt(views.ResultResponseView.as_view()),
-          name='robokassa_result'
+          name='result'
     ),
     url(
           r'^success/$',
           csrf_exempt(views.SuccessResponseView.as_view()),
-          name='robokassa_success'
+          name='success'
     ),
     url(
           r'^fail/$',
           csrf_exempt(views.FailResponseView.as_view()),
-          name='robokassa_fail'
+          name='fail'
     ),
 )

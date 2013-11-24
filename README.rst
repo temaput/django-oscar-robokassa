@@ -1,4 +1,11 @@
 ================
+django-oscar-robokassa
+================
+
+надстройка над django-robokassa для привязки платежей по Робокассе к 
+django-oscar (https://github.com/tangentlabs/django-oscar)
+
+================
 django-robokassa
 ================
 

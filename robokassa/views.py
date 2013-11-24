@@ -16,7 +16,7 @@ from robokassa.models import SuccessNotification
 from robokassa.forms import ResultURLForm, SuccessRedirectForm, FailRedirectForm
 from robokassa.signals import result_received, success_page_visited, fail_page_visited
 
-PaymentDetailsView = get_class('oscar.apps.checkout.views', 
+PaymentDetailsView = get_class('checkout.views', 
         'PaymentDetailsView')
 Basket = get_model('basket', 'Basket')
 
