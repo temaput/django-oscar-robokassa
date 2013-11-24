@@ -11,13 +11,14 @@ from django.http import HttpResponse, HttpResponseRedirect, HttpResponseNotFound
 from django.contrib import messages
 from oscar.core.loading import get_class
 from oscar.apps.payment.models import SourceType, Source
-from robokassa.conf import USE_POST
+from robokassa.conf import USE_POST, STRICT_CHECK
 from robokassa.models import SuccessNotification
 from robokassa.forms import ResultURLForm, SuccessRedirectForm, FailRedirectForm
 from robokassa.signals import result_received, success_page_visited, fail_page_visited
 
 PaymentDetailsView = get_class('checkout.views', 
         'PaymentDetailsView')
+CheckoutSessionData = get_class('checkout.utils', 'CheckoutSessionData')
 Basket = get_model('basket', 'Basket')
 
 
@@ -57,6 +58,7 @@ class SuccessResponseView(PaymentDetailsView, ProcessData):
     form = SuccessRedirectForm
 
     def dispatch(self, request, *args, **kwargs):
+        self.checkout_session = CheckoutSessionData(request)
         data = self.get_data(request)
         if data is None:
             return self.http_method_not_allowed(request, *args, **kwargs)
@@ -98,10 +100,16 @@ class SuccessResponseView(PaymentDetailsView, ProcessData):
 
         amount_allocated = self.robokassa_amount
         # Record payment source and event
-        source_type, is_created = SourceType.objects.get_or_create(name='Robokassa')
-        source = Source(source_type=source_type, amount_debited=amount_allocated)
+        source_type, is_created = SourceType.objects.get_or_create(
+                name=u'Робокасса', code='robokassa')
+        source = Source(source_type=source_type, 
+                amount_allocated=amount_allocated)
+        if STRICT_CHECK:
+            source.amount_debited=amount_allocated
         self.add_payment_source(source)
-        self.add_payment_event('settled', amount_allocated)
+        self.add_payment_event('allocated', amount_allocated)
+        if STRICT_CHECK:
+            self.add_payment_event('settled', amount_allocated)
 
 
 class FailResponseView(RedirectView, ProcessData):
@@ -141,21 +149,21 @@ class ResultResponseView(View, ProcessData):
         log.debug("="*80)
         data = self.get_data(request)
         log.debug("data is %s", data)
-        if self.data is None:
+        if data is None:
             return self.http_method_not_allowed(request, *args, **kwargs)
         self.process_data(data)
         log.debug("cleaned data is %s", self.robokassa_cleaned_data)
         if self.robokassa_cleaned_data is None:
             return HttpResponse('error: bad signature')
-        log.debug("basket num is %s", self.basket.num)
-        basket = get_object_or_404(Basket, id=self.basket_num,
+        log.debug("basket num is %s", self.basket_num)
+        self.basket = get_object_or_404(Basket, id=self.basket_num,
                                 status=Basket.FROZEN)
 
         # checking complete: create notification and send confirmation
         SuccessNotification.objects.create(
                 InvId = self.basket_num, OutSum = self.robokassa_amount)
         # keeping this for legacy
-        result_received.send(sender = basket, 
+        result_received.send(sender = self.basket, 
                 InvId = self.basket_num, OutSum = self.robokassa_amount,
                              extra = self.robokassa_extra_params)
 
