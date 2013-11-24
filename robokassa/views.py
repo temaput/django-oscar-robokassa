@@ -110,7 +110,7 @@ class FailResponseView(RedirectView, ProcessData):
 
     def dispatch(self, request, *args, **kwargs):
         data = self.get_data(request)
-        if self.data is None:
+        if data is None:
             return self.http_method_not_allowed(request, *args, **kwargs)
         self.process_data(data)
         if self.robokassa_cleaned_data is None:
