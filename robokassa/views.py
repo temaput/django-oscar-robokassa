@@ -136,12 +136,18 @@ class ResultResponseView(View, ProcessData):
     form = ResultURLForm
 
     def dispatch(self, request, *args, **kwargs):
+        log.debug("="*80)
+        log.debug("In result view")
+        log.debug("="*80)
         data = self.get_data(request)
+        log.debug("data is %s", data)
         if self.data is None:
             return self.http_method_not_allowed(request, *args, **kwargs)
         self.process_data(data)
+        log.debug("cleaned data is %s", self.robokassa_cleaned_data)
         if self.robokassa_cleaned_data is None:
             return HttpResponse('error: bad signature')
+        log.debug("basket num is %s", self.basket.num)
         basket = get_object_or_404(Basket, id=self.basket_num,
                                 status=Basket.FROZEN)
 
