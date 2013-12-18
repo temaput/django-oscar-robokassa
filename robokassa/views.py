@@ -20,6 +20,9 @@ PaymentDetailsView = get_class('checkout.views',
         'PaymentDetailsView')
 CheckoutSessionData = get_class('checkout.utils', 'CheckoutSessionData')
 Basket = get_model('basket', 'Basket')
+Selector = get_class('partner.strategy', 'Selector')
+
+selector = Selector()
 
 
 class ProcessData(object):
@@ -37,6 +40,8 @@ class ProcessData(object):
         if form.is_valid():
             self.robokassa_cleaned_data = form.cleaned_data
             self.robokassa_extra_params = form.extra_params()
+        else:
+            log.error("Error checking data: %s", form.errors)
 
     @property
     def basket_num(self): 
@@ -80,13 +85,17 @@ class SuccessResponseView(PaymentDetailsView, ProcessData):
                 self.request,
                 u"Данному платежу не соответствует ни одна корзина")
             return HttpResponseRedirect(reverse('basket:summary'))
+        strategy = selector.strategy(
+            request=request, user=request.user)
+        self.basket.strategy = strategy
 
         # keep this for legacy
         success_page_visited.send(sender = self, 
                 InvId = self.basket_num, OutSum = self.robokassa_amount,
                              extra = self.robokassa_extra_params)
         # if everything OK finish order placement
-        return self.submit(self.basket)
+        submission = self.build_submission(basket=self.basket)
+        return self.submit(**submission)
 
     def generate_order_number(self, basket):
         """ we already have an order_number, just return it """
