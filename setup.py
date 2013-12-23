@@ -19,7 +19,7 @@ setup(
     description = u'Приложение для интеграции платежной системы ROBOKASSA в проекты на основе django-oscar'.encode('utf8'),
     long_description = open('README.rst').read().decode('utf8') + open('CHANGES.rst').read().decode('utf8'),
 
-    requires=['django (>= 1.5)', 'oscar (>=0.5)'],
+    requires=['django (>= 1.5)', 'oscar (>=0.6)'],
     obsoletes=['robokassa (<=1.1)'],
 
     classifiers=(

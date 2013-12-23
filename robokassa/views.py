@@ -53,8 +53,11 @@ class ProcessData(object):
 
     @property
     def order_num(self):
-        return self.robokassa_extra_params.get('OrderNum', None)
+        return self.robokassa_extra_params.get('order_num', None)
 
+    @property
+    def session_key(self):
+        return self.robokassa_extra_params.get('session_key', None)
 
 class SuccessResponseView(PaymentDetailsView, ProcessData):
     """ Landing page for succesfull redirects from ROBOKASSA
