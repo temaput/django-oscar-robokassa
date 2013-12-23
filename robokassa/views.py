@@ -1,7 +1,7 @@
 # set encoding=utf-8
 
 from logging import getLogger
-log = getLogger(__name__)
+log = getLogger('robokassa.view')
 
 from django.views.generic import RedirectView, View
 from django.shortcuts import get_object_or_404

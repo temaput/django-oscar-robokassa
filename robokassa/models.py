@@ -13,3 +13,10 @@ class SuccessNotification(models.Model):
 
     def __unicode__(self):
         return u'#%d: %s (%s)' % (self.InvId, self.OutSum, self.created_at)
+
+# registering signals
+from robokassa.receivers import place_order
+from robokassa.signals import result_received
+result_received.connect(place_order, dispatch_uid = "6601677768")
+
+
