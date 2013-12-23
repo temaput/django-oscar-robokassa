@@ -5,6 +5,7 @@ log = getLogger('robokassa.receivers')
 
 from django.http import HttpRequest
 from django.contrib.sessions.backends.db import SessionStore
+from django.contrib.auth.models import AnonymousUser
 from oscar.apps.checkout.mixins import OrderPlacementMixin
 from oscar.apps.checkout.utils import CheckoutSessionData
 from oscar.apps.payment.models import SourceType, Source
@@ -14,13 +15,19 @@ from oscar.core import prices
 from robokassa.signals import result_received, success_page_visited, fail_page_visited
 
 Selector = get_class('partner.strategy', 'Selector')
+post_payment = get_class('checkout.signals', 'post_payment')
 
 selector = Selector()
 
 class RobokassaOrderPlacement(OrderPlacementMixin):
 
     def handle_successful_order(self, order):
-        log.info("order %s handeled successfully", order)
+        log.info("Order with number %s, succesfully placed", order.number)
+        if not hasattr(self, 'request'):  # this is a worst case scenario
+            self.view_signal.send(sender=self, order=order, user=order.user)
+        else:
+            super(RobokassaOrderPlacement, self).handle_successful_order(order)
+
 
 def place_order(sender, **kwargs):
     """ collect basket, user, shipping_method and address, order_number, total
@@ -28,23 +35,26 @@ def place_order(sender, **kwargs):
     sources """
     request = HttpRequest()
     basket = sender
-    user = basket.owner
+    user = basket.owner if basket.owner else AnonymousUser()
+    guest_email = None
+
     strategy = selector.strategy(user=user)
     session_data = shipping_address = shipping_method = None
     log.debug("initialising: \n basket = %s \n usr = %s \n strategy = %s",
             basket, user, strategy)
     basket.strategy = strategy
     amount_allocated = kwargs['OutSum']
-    if 'extra' in kwargs:
-        session_key  = kwargs['extra'].get('session_key', None)
-        order_num =    kwargs['extra'].get('order_num', None)
-        if session_key is not None:
-            session = SessionStore(session_key = session_key)
-            if len(session.items()):
-                log.debug("Session %s successfully restored", session)
-                request.session = session
-                request.user = user
-                session_data = CheckoutSessionData(request)
+    session_key  = kwargs['session_key']
+    order_num =    kwargs['order_num']
+    if session_key is not None:
+        session = SessionStore(session_key = session_key)
+        if len(session.items()):
+            log.debug("Session %s successfully restored", session)
+            request.session = session
+            request.user = user
+            session_data = CheckoutSessionData(request)
+            if isinstance(user, AnonymousUser):
+                guest_email = session_data.get_guest_email()
 
     order_placement = RobokassaOrderPlacement()
     if session_data is not None:
@@ -55,15 +65,12 @@ def place_order(sender, **kwargs):
                 basket, shipping_address)
         total = order_placement.get_order_totals(basket, shipping_method)
     else:  # session not found, lets try to place order anyway
-        log.warning("Session was not restored, trying to place order by default")
+        log.error(("Session was not restored, trying default order for "
+                    "basket #%s"), basket.id)
         basket.is_shipping_required = False
         total = prices.Price(
             currency=basket.currency,
             excl_tax=basket.total_excl_tax, incl_tax=basket.total_incl_tax)
-
-    if order_num is None:
-        log.warning("Order number was not restored, trying to use default")
-        order_num = 100000 + basket.id
 
     # now create payment source and events
     source_type, is_created = SourceType.objects.get_or_create(
@@ -73,8 +80,9 @@ def place_order(sender, **kwargs):
     order_placement.add_payment_source(source)
     order_placement.add_payment_event('allocated', amount_allocated)
     order_placement.add_payment_event('debited', amount_allocated)
+    post_payment.send(sender=order_placement, source=source)
 
     # all done lets place an order
     order_placement.handle_order_placement(
                 order_num, user, basket, shipping_address, shipping_method,
-                total)
+                total, guest_email=guest_email)

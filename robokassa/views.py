@@ -16,14 +16,10 @@ from robokassa.models import SuccessNotification
 from robokassa.forms import ResultURLForm, SuccessRedirectForm, FailRedirectForm
 from robokassa.signals import result_received, success_page_visited, fail_page_visited
 
-PaymentDetailsView = get_class('checkout.views', 
-        'PaymentDetailsView')
-CheckoutSessionData = get_class('checkout.utils', 'CheckoutSessionData')
+ThankYouView = get_class('checkout.views', 'ThankYouView')
 Basket = get_model('basket', 'Basket')
-Selector = get_class('partner.strategy', 'Selector')
-
-selector = Selector()
-
+Order = get_model('order', 'Order')
+OrderNumberGenerator = get_class('order.utils', 'OrderNumberGenerator')
 
 class ProcessData(object):
     def get_data(self, request):
@@ -53,20 +49,23 @@ class ProcessData(object):
 
     @property
     def order_num(self):
-        return self.robokassa_extra_params.get('order_num', None)
+        order_num = self.robokassa_extra_params.get('order_num', None)
+        if order_num is None:
+            log.warning("order number was not restored, using default")
+            order_num = OrderNumberGenerator.order_number(self.basket)
+        return order_num
 
     @property
     def session_key(self):
         return self.robokassa_extra_params.get('session_key', None)
 
-class SuccessResponseView(PaymentDetailsView, ProcessData):
+class SuccessResponseView(ThankYouView, ProcessData):
     """ Landing page for succesfull redirects from ROBOKASSA
     Should check the parameters and if OK render the thankyou page
     """
     form = SuccessRedirectForm
 
     def dispatch(self, request, *args, **kwargs):
-        self.checkout_session = CheckoutSessionData(request)
         data = self.get_data(request)
         if data is None:
             return self.http_method_not_allowed(request, *args, **kwargs)
@@ -81,47 +80,25 @@ class SuccessResponseView(PaymentDetailsView, ProcessData):
 
         # lets find the basket
         try:
-            self.basket = Basket.objects.get(id=self.basket_num,
-                                        status=Basket.FROZEN)
+            self.basket = Basket.objects.get(id=self.basket_num)
         except Basket.DoesNotExist:
             messages.error(
                 self.request,
                 u"Данному платежу не соответствует ни одна корзина")
             return HttpResponseRedirect(reverse('basket:summary'))
-        strategy = selector.strategy(
-            request=request, user=request.user)
-        self.basket.strategy = strategy
 
         # keep this for legacy
         success_page_visited.send(sender = self, 
                 InvId = self.basket_num, OutSum = self.robokassa_amount,
                              extra = self.robokassa_extra_params)
-        # if everything OK finish order placement
-        submission = self.build_submission(basket=self.basket)
-        return self.submit(**submission)
+        # if everything OK render thank-you page
 
-    def generate_order_number(self, basket):
-        """ we already have an order_number, just return it """
-        return self.order_num if self.order_num else \
-                super(SuccessResponseView, self).generate_order_number(basket)
+        return super(SuccessResponseView, self).get(request, *args, **kwargs)
 
-    def handle_payment(self, order_number, total_incl_tax, **kwargs):
-        """
-        finalize robokassa payment
-        """
+    def get_object(self):
+        log.debug("looking for order # %s", self.order_num)
+        return get_object_or_404(Order, number=self.order_num)
 
-        amount_allocated = self.robokassa_amount
-        # Record payment source and event
-        source_type, is_created = SourceType.objects.get_or_create(
-                name=u'Робокасса', code='robokassa')
-        source = Source(source_type=source_type, 
-                amount_allocated=amount_allocated)
-        if STRICT_CHECK:
-            source.amount_debited=amount_allocated
-        self.add_payment_source(source)
-        self.add_payment_event('allocated', amount_allocated)
-        if STRICT_CHECK:
-            self.add_payment_event('settled', amount_allocated)
 
 
 class FailResponseView(RedirectView, ProcessData):
@@ -177,6 +154,7 @@ class ResultResponseView(View, ProcessData):
         # keeping this for legacy
         result_received.send(sender = self.basket, 
                 InvId = self.basket_num, OutSum = self.robokassa_amount,
+                order_num = self.order_num, session_key = self.session_key,
                              extra = self.robokassa_extra_params)
 
         return HttpResponse('OK%s' % self.basket_num)
