@@ -6,6 +6,7 @@ log = getLogger('robokassa.receivers')
 from django.http import HttpRequest
 from django.contrib.sessions.backends.db import SessionStore
 from django.contrib.auth.models import AnonymousUser
+
 from oscar.apps.checkout.mixins import OrderPlacementMixin
 from oscar.apps.checkout.utils import CheckoutSessionData
 from oscar.apps.payment.models import SourceType, Source
@@ -23,8 +24,9 @@ class RobokassaOrderPlacement(OrderPlacementMixin):
 
     def handle_successful_order(self, order):
         log.info("Order with number %s, succesfully placed", order.number)
-        if not hasattr(self, 'request'):  # this is a worst case scenario
-            self.view_signal.send(sender=self, order=order, user=order.user)
+        if not hasattr(self, 'checkout_session'):  # this is a worst case scenario
+            self.view_signal.send(sender=self, order=order, user=order.user,
+                    confirmation_not_sent=True)
         else:
             super(RobokassaOrderPlacement, self).handle_successful_order(order)
 
@@ -33,7 +35,7 @@ def place_order(sender, **kwargs):
     """ collect basket, user, shipping_method and address, order_number, total
     and pass them to handle_order_placement, but first add payment events and
     sources """
-    request = HttpRequest()
+    request = kwargs.get('request', None) or HttpRequest()
     basket = sender
     user = basket.owner if basket.owner else AnonymousUser()
     guest_email = None
@@ -57,9 +59,9 @@ def place_order(sender, **kwargs):
                 guest_email = session_data.get_guest_email()
 
     order_placement = RobokassaOrderPlacement()
+    order_placement.request = request
     if session_data is not None:
         order_placement.checkout_session = session_data
-        order_placement.request = request
         shipping_address = order_placement.get_shipping_address(basket)
         shipping_method = order_placement.get_shipping_method(
                 basket, shipping_address)
@@ -80,7 +82,7 @@ def place_order(sender, **kwargs):
     order_placement.add_payment_source(source)
     order_placement.add_payment_event('allocated', amount_allocated)
     order_placement.add_payment_event('debited', amount_allocated)
-    post_payment.send(sender=order_placement, source=source)
+    post_payment.send(sender=order_placement, user=user, source=source)
 
     # all done lets place an order
     order_placement.handle_order_placement(

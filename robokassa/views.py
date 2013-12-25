@@ -152,7 +152,7 @@ class ResultResponseView(View, ProcessData):
         SuccessNotification.objects.create(
                 InvId = self.basket_num, OutSum = self.robokassa_amount)
         # keeping this for legacy
-        result_received.send(sender = self.basket, 
+        result_received.send(sender = self.basket, request=request,
                 InvId = self.basket_num, OutSum = self.robokassa_amount,
                 order_num = self.order_num, session_key = self.session_key,
                              extra = self.robokassa_extra_params)

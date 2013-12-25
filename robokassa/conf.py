@@ -20,7 +20,6 @@ TEST_MODE = getattr(settings, 'ROBOKASSA_TEST_MODE', False)
 FORM_TARGET = u'https://merchant.roboxchange.com/Index.aspx'
 if TEST_MODE:
     FORM_TARGET = u'http://test.robokassa.ru/Index.aspx'
-    FORM_TARGET = u'http://192.168.1.230/flatpage/robotest'
 
 # список пользовательских параметров ("shp" к ним приписывать не нужно)
 EXTRA_PARAMS = sorted(getattr(settings, 'ROBOKASSA_EXTRA_PARAMS', ['order_num', 'session_key',]))
