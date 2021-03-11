@@ -60,6 +60,11 @@ def place_order(sender, **kwargs):
 
     order_placement = RobokassaOrderPlacement()
     order_placement.request = request
+    if guest_email is None:
+        if hasattr(user, "email"):
+            guest_email = user.email
+        else:
+            guest_email = "unknown-client-email@practica.ru"
     if session_data is not None:
         order_placement.checkout_session = session_data
         shipping_address = order_placement.get_shipping_address(basket)
