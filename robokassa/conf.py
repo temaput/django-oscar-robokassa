@@ -28,3 +28,7 @@ if TEST_MODE:
 
 # список пользовательских параметров ("shp" к ним приписывать не нужно)
 EXTRA_PARAMS = sorted(getattr(settings, 'ROBOKASSA_EXTRA_PARAMS', ['order_num', 'session_key',]))
+
+
+# необходимость фискализации
+RECEIPT_IS_REQUIRED = getattr(settings, 'ROBOKASSA_RECEIPT_IS_REQUIRED', False)

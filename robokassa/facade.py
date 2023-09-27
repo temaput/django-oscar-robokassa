@@ -13,13 +13,18 @@ from robokassa.conf import EXTRA_PARAMS
 OPTIONAL_PARAMS = ('Desc', 'IncCurrLabel', 'Email', 'Culture')
 RedirectRequired = get_class('payment.exceptions','RedirectRequired')
 
-def robokassa_redirect(request, basket_num, amount, **kwargs):
+def robokassa_redirect(request, basket_num, amount, receiptDTO = "", **kwargs):
     """ This will be called from PaymentDetailsView.handle_payment,
     it supposed to generate url for Robokassa, inject it into RedirectRequired
     error and raise it
     We also have to save the session and to use its number as parameter
+
+
     """
-    initial={'OutSum': amount, 'InvId': basket_num}
+
+
+
+    initial={'OutSum': amount, 'InvId': basket_num, 'Receipt': receiptDTO}
     for key in kwargs:
         if key in EXTRA_PARAMS or key in OPTIONAL_PARAMS:
             initial[key] = kwargs[key]
