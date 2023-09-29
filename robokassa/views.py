@@ -22,6 +22,7 @@ Basket = get_model('basket', 'Basket')
 Order = get_model('order', 'Order')
 OrderNumberGenerator = get_class('order.utils', 'OrderNumberGenerator')
 CheckoutSessionMixin = get_class('checkout.session', 'CheckoutSessionMixin')
+PaymentError = get_class('payment.exceptions', 'PaymentError')
 
 class ProcessData(object):
     def get_data(self, request):
@@ -185,7 +186,7 @@ class RedirectView(CheckoutSessionMixin, FormView):
         session = self.request.session
         if not ROBOKASSA_SESSION_KEY in session:
             log.error("Robokassa session key not found")
-            raise HttpResponseServerError("Robokassa session key not found")
+            raise PaymentError("Robokassa session key not found")
         initial = session.pop(ROBOKASSA_SESSION_KEY)
         # session.save() # TODO: is this needed?
         session_key = session.session_key
