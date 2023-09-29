@@ -186,7 +186,7 @@ class RedirectView(CheckoutSessionMixin, FormView):
         if not ROBOKASSA_SESSION_KEY in session:
             log.error("Robokassa session key not found")
             raise HttpResponseServerError("Robokassa session key not found")
-        initial = session[ROBOKASSA_SESSION_KEY]
+        initial = session.pop(ROBOKASSA_SESSION_KEY)
         # session.save() # TODO: is this needed?
         session_key = session.session_key
         if session_key is not None:
