@@ -32,3 +32,5 @@ EXTRA_PARAMS = sorted(getattr(settings, 'ROBOKASSA_EXTRA_PARAMS', ['order_num', 
 
 # необходимость фискализации
 RECEIPT_IS_REQUIRED = getattr(settings, 'ROBOKASSA_RECEIPT_IS_REQUIRED', False)
+
+ROBOKASSA_SESSION_KEY = "ROBOKASSA_SESSION_KEY"
