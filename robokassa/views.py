@@ -11,7 +11,7 @@ from django.http import HttpResponse, HttpResponseRedirect, HttpResponseNotFound
 from django.contrib import messages
 from oscar.core.loading import get_class
 from oscar.apps.payment.models import SourceType, Source
-from robokassa.conf import USE_POST, ROBOKASSA_SESSION_KEY
+from robokassa.conf import USE_POST, ROBOKASSA_SESSION_KEY, FORM_TARGET
 from robokassa.models import SuccessNotification
 from robokassa.forms import ResultURLForm, SuccessRedirectForm, FailRedirectForm
 from robokassa.signals import result_received, success_page_visited, fail_page_visited
@@ -172,6 +172,14 @@ class RedirectView(CheckoutSessionMixin, FormView):
     """
     template_name = 'robokassa_redirect.html'
     form_class = RobokassaForm
+
+    def get_redirect_url(self): 
+        return FORM_TARGET
+
+    def get_context_data(self, **kwargs):
+        ctx = super(RedirectView, self).get_context_data(**kwargs)
+        ctx['form_action'] = self.get_redirect_url()
+        return ctx
 
     def get_initial(self):
         session = self.request.session
