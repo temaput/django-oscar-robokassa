@@ -107,7 +107,12 @@ class RobokassaForm(BaseRobokassaForm):
             if value is None:
                 return ''
             return unicode(value)
-        standard_part = ':'.join([_val('MrchLogin'), _val('OutSum'), _val('InvId'), _val('Receipt'), PASSWORD1])
+        standard_part = [_val('MrchLogin'), _val('OutSum'), _val('InvId')]
+        if _val('Receipt'):
+            standard_part += [_val('Receipt')]
+        standard_part += [PASSWORD1]
+        standard_part = ':'.join(standard_part)
+
         return self._append_extra_part(standard_part, _val)
 
 
