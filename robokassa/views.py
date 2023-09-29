@@ -3,23 +3,26 @@
 from logging import getLogger
 log = getLogger('robokassa.view')
 
-from django.views.generic import RedirectView, View
+from django.views.generic import RedirectView, View, FormView
 from django.shortcuts import get_object_or_404
 from django.db.models import get_model
 from django.core.urlresolvers import reverse
-from django.http import HttpResponse, HttpResponseRedirect, HttpResponseNotFound
+from django.http import HttpResponse, HttpResponseRedirect, HttpResponseNotFound, HttpResponseServerError
 from django.contrib import messages
 from oscar.core.loading import get_class
 from oscar.apps.payment.models import SourceType, Source
-from robokassa.conf import USE_POST, STRICT_CHECK
+from robokassa.conf import USE_POST, ROBOKASSA_SESSION_KEY, FORM_TARGET
 from robokassa.models import SuccessNotification
 from robokassa.forms import ResultURLForm, SuccessRedirectForm, FailRedirectForm
 from robokassa.signals import result_received, success_page_visited, fail_page_visited
+from robokassa.forms import RobokassaForm
 
 ThankYouView = get_class('checkout.views', 'ThankYouView')
 Basket = get_model('basket', 'Basket')
 Order = get_model('order', 'Order')
 OrderNumberGenerator = get_class('order.utils', 'OrderNumberGenerator')
+CheckoutSessionMixin = get_class('checkout.session', 'CheckoutSessionMixin')
+PaymentError = get_class('payment.exceptions', 'PaymentError')
 
 class ProcessData(object):
     def get_data(self, request):
@@ -158,3 +161,39 @@ class ResultResponseView(View, ProcessData):
                              extra = self.robokassa_extra_params)
 
         return HttpResponse('OK%s' % self.basket_num)
+
+
+class RedirectView(CheckoutSessionMixin, FormView):
+    """
+    Сюда перенаправляются пользователи, разместившие заказ и выбравшие
+    оплату через Робокассу. Наша задача:
+    - Собрать данные для платежа
+    - Сформировать скрытую форму с автосабмитом
+    - Перенаправить пользователя на страницу оплаты
+    """
+    template_name = 'robokassa_redirect.html'
+    form_class = RobokassaForm
+
+    def get_redirect_url(self): 
+        return FORM_TARGET
+
+    def get_context_data(self, **kwargs):
+        ctx = super(RedirectView, self).get_context_data(**kwargs)
+        ctx['form_action'] = self.get_redirect_url()
+        return ctx
+
+    def get_initial(self):
+        session = self.request.session
+        if not ROBOKASSA_SESSION_KEY in session:
+            log.error("Robokassa session key not found")
+            raise PaymentError("Robokassa session key not found")
+        initial = session.pop(ROBOKASSA_SESSION_KEY)
+        # session.save() # TODO: is this needed?
+        session_key = session.session_key
+        if session_key is not None:
+            initial['session_key'] = session_key
+        else:
+            log.error('session_key is empty')
+        return initial
+
+

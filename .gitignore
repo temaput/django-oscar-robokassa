@@ -12,3 +12,4 @@ dist/
 MANIFEST
 django_robokassa.egg-info
 .tox
+.DS_Store

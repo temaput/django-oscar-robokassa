@@ -18,4 +18,9 @@ urlpatterns = patterns('',
           csrf_exempt(views.FailResponseView.as_view()),
           name='fail'
     ),
+    url(
+          r'^redirect/$',
+          csrf_exempt(views.RedirectView.as_view()),
+          name='redirect'
+    ),
 )

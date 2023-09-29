@@ -5,7 +5,7 @@ from urllib import urlencode
 from django import forms
 
 from robokassa.conf import LOGIN, PASSWORD1, PASSWORD2
-from robokassa.conf import STRICT_CHECK, FORM_TARGET, EXTRA_PARAMS, TEST_MODE
+from robokassa.conf import STRICT_CHECK, FORM_TARGET, EXTRA_PARAMS, TEST_MODE, RECEIPT_IS_REQUIRED
 from robokassa.models import SuccessNotification
 
 class BaseRobokassaForm(forms.Form):
@@ -64,6 +64,8 @@ class RobokassaForm(BaseRobokassaForm):
     # язык общения с клиентом (en или ru)
     Culture = forms.CharField(max_length=10, required=False)
 
+    Receipt = forms.CharField(required=RECEIPT_IS_REQUIRED)
+
     # должен быть установлен для тестового режима
     IsTest = forms.IntegerField(min_value=0, max_value=1, required=False, initial=1 if TEST_MODE else 0)
     # Параметр с URL'ом, на который форма должны быть отправлена.
@@ -105,7 +107,12 @@ class RobokassaForm(BaseRobokassaForm):
             if value is None:
                 return ''
             return unicode(value)
-        standard_part = ':'.join([_val('MrchLogin'), _val('OutSum'), _val('InvId'), PASSWORD1])
+        standard_part = [_val('MrchLogin'), _val('OutSum'), _val('InvId')]
+        if _val('Receipt'):
+            standard_part += [_val('Receipt')]
+        standard_part += [PASSWORD1]
+        standard_part = ':'.join(standard_part)
+
         return self._append_extra_part(standard_part, _val)
 
 
