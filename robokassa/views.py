@@ -7,15 +7,17 @@ from django.views.generic import RedirectView, View, FormView
 from django.shortcuts import get_object_or_404
 from django.db.models import get_model
 from django.core.urlresolvers import reverse
-from django.http import HttpResponse, HttpResponseRedirect, HttpResponseNotFound, HttpResponseServerError
+from django.http import HttpResponse, HttpResponseRedirect, HttpResponseNotFound
 from django.contrib import messages
 from oscar.core.loading import get_class
-from oscar.apps.payment.models import SourceType, Source
 from robokassa.conf import USE_POST, ROBOKASSA_SESSION_KEY, FORM_TARGET
 from robokassa.models import SuccessNotification
 from robokassa.forms import ResultURLForm, SuccessRedirectForm, FailRedirectForm
 from robokassa.signals import result_received, success_page_visited, fail_page_visited
 from robokassa.forms import RobokassaForm
+from django.views.generic import TemplateView
+import time
+from datetime import datetime, timedelta
 
 ThankYouView = get_class('checkout.views', 'ThankYouView')
 Basket = get_model('basket', 'Basket')
@@ -61,47 +63,6 @@ class ProcessData(object):
     @property
     def session_key(self):
         return self.robokassa_extra_params.get('session_key', None)
-
-class SuccessResponseView(ThankYouView, ProcessData):
-    """ Landing page for succesfull redirects from ROBOKASSA
-    Should check the parameters and if OK render the thankyou page
-    """
-    form = SuccessRedirectForm
-
-    def dispatch(self, request, *args, **kwargs):
-        data = self.get_data(request)
-        if data is None:
-            return self.http_method_not_allowed(request, *args, **kwargs)
-        self.process_data(data)
-        if self.robokassa_cleaned_data is None:
-            messages.error(
-                self.request,
-                (u"Возникли ошибки при обработке Вашего платежа, пожалуйста, "
-                u"свяжитесь с нами по телефону"))
-            log.error("SuccessRedirect error: bad data")
-            return HttpResponseRedirect(reverse('basket:summary'))
-
-        # lets find the basket
-        try:
-            self.basket = Basket.objects.get(id=self.basket_num)
-        except Basket.DoesNotExist:
-            messages.error(
-                self.request,
-                u"Данному платежу не соответствует ни одна корзина")
-            return HttpResponseRedirect(reverse('basket:summary'))
-
-        # keep this for legacy
-        success_page_visited.send(sender = self, 
-                InvId = self.basket_num, OutSum = self.robokassa_amount,
-                             extra = self.robokassa_extra_params)
-        # if everything OK render thank-you page
-
-        return super(SuccessResponseView, self).get(request, *args, **kwargs)
-
-    def get_object(self):
-        log.debug("looking for order # %s", self.order_num)
-        return get_object_or_404(Order, number=self.order_num)
-
 
 
 class FailResponseView(RedirectView, ProcessData):
@@ -197,3 +158,66 @@ class RedirectView(CheckoutSessionMixin, FormView):
         return initial
 
 
+
+
+
+
+class SuccessResponseView(TemplateView, ProcessData):
+    """ Landing page for succesfull redirects from ROBOKASSA
+    Should check the parameters and if OK render the thankyou page
+    """
+    form = SuccessRedirectForm
+    template_name = 'robokassa_success_load.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        data = self.get_data(request)
+        if data is None:
+            return self.http_method_not_allowed(request, *args, **kwargs)
+        self.data = data
+        self.process_data(data)
+        original_request_timestamp = self.request.session.setdefault('original_request_timestamp', int(time.time()))
+        if self.robokassa_cleaned_data is None:
+            messages.error(
+                self.request,
+                (u"Возникли ошибки при обработке Вашего платежа, пожалуйста, "
+                u"свяжитесь с нами по телефону"))
+            log.error("SuccessRedirect error: bad data")
+            return HttpResponseRedirect(reverse('basket:summary'))
+
+        # lets find the basket
+        try:
+            self.basket = Basket.objects.get(id=self.basket_num)
+        except Basket.DoesNotExist:
+            messages.error(
+                self.request,
+                u"Данному платежу не соответствует ни одна корзина")
+            return HttpResponseRedirect(reverse('basket:summary'))
+
+        # keep this for legacy
+        success_page_visited.send(sender = self, 
+                InvId = self.basket_num, OutSum = self.robokassa_amount,
+                             extra = self.robokassa_extra_params)
+        # if everything OK render thank-you page
+
+        # first check that order was created
+        try:
+            self.order = Order.objects.get(number=self.order_num)
+            request.session['checkout_order_id'] = self.order.pk
+            return HttpResponseRedirect(reverse('checkout:thank-you'))
+        except Order.DoesNotExist:
+            if datetime.now() - datetime.fromtimestamp(original_request_timestamp) > timedelta(minutes=1):
+                messages.error(
+                    self.request,
+                    u"Время ожидания подтверждения платежа истекло, cвяжитесь с нами по телефону")
+                return HttpResponseRedirect(reverse('basket:summary'))
+            use_partial = self.data.get('use_partial', False)
+            if use_partial:
+                return HttpResponse('Expecting payment confirmation', content_type='text/plain', status=200)
+
+        return super(SuccessResponseView, self).get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super(SuccessResponseView, self).get_context_data(**kwargs)
+        context['form'] = self.form(initial=self.data)
+        context['use_post'] = USE_POST
+        return context
